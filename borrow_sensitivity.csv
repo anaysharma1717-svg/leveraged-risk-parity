@@ -1,0 +1,13 @@
+strategy,spread over T-bill %,case,CAGR %,Sharpe,Max drawdown %,CAGR vs 60/40,Sharpe vs 60/40,Max DD vs 60/40
+Risk parity 1.5x,0.0,no spread (theoretical),7.73,0.62,-27.4,-0.5,-0.02,4.8
+Risk parity 1.5x,0.25,institutional / futures,7.6,0.61,-27.5,-0.63,-0.03,4.7
+Risk parity 1.5x,0.5,in between,7.46,0.59,-27.5,-0.77,-0.05,4.7
+Risk parity 1.5x,1.0,retail broker (main case),7.19,0.57,-27.7,-1.04,-0.07,4.5
+Risk parity 2x,0.0,no spread (theoretical),9.6,0.62,-35.3,1.37,-0.02,-3.1
+Risk parity 2x,0.25,institutional / futures,9.33,0.6,-35.4,1.1,-0.04,-3.2
+Risk parity 2x,0.5,in between,9.06,0.58,-35.5,0.83,-0.06,-3.3
+Risk parity 2x,1.0,retail broker (main case),8.52,0.54,-35.7,0.29,-0.1,-3.5
+Vol target 10%,0.0,no spread (theoretical),8.45,0.65,-21.8,0.22,0.01,10.4
+Vol target 10%,0.25,institutional / futures,8.25,0.63,-21.8,0.02,-0.01,10.4
+Vol target 10%,0.5,in between,8.06,0.61,-21.8,-0.17,-0.03,10.4
+Vol target 10%,1.0,retail broker (main case),7.67,0.58,-21.8,-0.56,-0.06,10.4

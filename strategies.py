@@ -100,3 +100,36 @@ def build_all(prices):
         "Risk parity 2x": levered(rp, 2.0),
         "Vol target 10%": vt,
     }
+
+
+# ---------------------------------------------------------------------------
+# Correlation guard (Phase B)
+# ---------------------------------------------------------------------------
+CORR_WINDOW = 63       # about 3 months of trading days
+GUARD_THRESHOLD = 0.0  # fixed in advance: if stocks and bonds moved together (correlation above 0), stop borrowing
+
+
+def stock_bond_correlation(prices, window=CORR_WINDOW):
+    """
+    For each rebalance date: correlation of daily SPY and IEF returns over the last `window` trading days,
+    using only returns up to the previous day. NaN if there is not yet enough history (only the first month).
+    """
+    rets = prices.pct_change()
+    out = {}
+    for d in rebalance_dates(prices):
+        i = prices.index.get_loc(d)
+        past = rets.iloc[max(1, i - window):i]          # rows before day d only
+        out[d] = past["SPY"].corr(past["IEF"]) if len(past) >= window else float("nan")
+    return pd.Series(out, name="SPY-IEF correlation")
+
+
+def correlation_guard(targets, corr, threshold=GUARD_THRESHOLD):
+    """
+    If the stock-bond correlation is above `threshold`, take leverage down to 1x for that month
+    (same mix of assets, just no borrowing). Otherwise keep the strategy's normal leverage.
+    The guard only ever REMOVES borrowing: a month that was already below 1x (vol target) stays as it was.
+    When the correlation is unknown (first month), the guard does nothing.
+    """
+    lev = targets.sum(axis=1)
+    guarded_lev = lev.where(~(corr.reindex(targets.index) > threshold), lev.clip(upper=1.0))
+    return targets.mul(guarded_lev / lev, axis=0)

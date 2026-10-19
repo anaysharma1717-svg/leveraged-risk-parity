@@ -23,12 +23,13 @@ MARGIN_LEVEL = 0.25        # margin call if equity / exposure falls below 25%
 TRADING_DAYS = 252
 
 
-def run_backtest(prices, rate, targets, margin_calls=True):
+def run_backtest(prices, rate, targets, margin_calls=True, borrow_spread=BORROW_SPREAD):
     """
     prices:  daily adjusted closes (one column per asset)
     rate:    T-bill yield per year as a decimal, same dates as prices
     targets: from strategies.py - $ of each asset per $1 equity, one row per rebalance date
     margin_calls: False = pretend the broker never forces us out (used to measure what margin calls cost)
+    borrow_spread: extra yearly rate on top of the T-bill rate when borrowing (0.01 = 1%, the retail-broker case)
 
     Returns (daily, events):
       daily:  one row per day: equity, exposure, leverage, costs, and the $ held in each asset
@@ -61,7 +62,7 @@ def run_backtest(prices, rate, targets, margin_calls=True):
             # borrowed = what we held yesterday minus what we owned yesterday (negative = spare cash)
             borrowed = yesterday_exposure - equity
             if borrowed > 0:
-                interest = -borrowed * (yesterday_rate + BORROW_SPREAD) / TRADING_DAYS
+                interest = -borrowed * (yesterday_rate + borrow_spread) / TRADING_DAYS
                 borrow_cost = -interest
             else:
                 interest = -borrowed * yesterday_rate / TRADING_DAYS    # cash earns the T-bill rate
@@ -107,14 +108,15 @@ def run_backtest(prices, rate, targets, margin_calls=True):
     return daily, events
 
 
-def leverage_curve(prices, rate, weights, levels, margin_calls=True):
+def leverage_curve(prices, rate, weights, levels, margin_calls=True, borrow_spread=BORROW_SPREAD):
     """
     Runs the same risk parity mix at many fixed leverage levels.
     Returns one row per level with the final value, the equity curve and the number of margin calls.
     """
     rows = []
     for lev in levels:
-        daily, events = run_backtest(prices, rate, weights * lev, margin_calls=margin_calls)
+        daily, events = run_backtest(prices, rate, weights * lev, margin_calls=margin_calls,
+                                     borrow_spread=borrow_spread)
         rows.append({"leverage": lev, "equity": daily["equity"],
                      "margin calls": sum(e["type"] == "margin call" for e in events),
                      "wiped out": any(e["type"] == "wiped out" for e in events)})

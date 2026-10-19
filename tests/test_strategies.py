@@ -90,3 +90,30 @@ def test_margin_call_forces_1x():
     daily, events = run_backtest(p, rate, t)
     assert any(e["type"] == "margin call" and e["date"] == crash_day for e in events)
     assert abs(daily.loc[crash_day, "leverage"] - 1.0) < 1e-9
+
+
+def test_correlation_guard_only_removes_borrowing():
+    """The guard can only lower leverage, to at most 1x, and never touches the mix of assets."""
+    p = fake_prices()
+    t = strategies.levered(strategies.inverse_vol_weights(p), 2.0)
+    corr = pd.Series(np.where(np.arange(len(t)) % 2 == 0, 0.3, -0.3), index=t.index)   # guard on every other month
+    g = strategies.correlation_guard(t, corr)
+    lev, glev = t.sum(axis=1), g.sum(axis=1)
+    assert np.allclose(glev[corr > 0], 1.0)
+    assert np.allclose(glev[corr <= 0], lev[corr <= 0])
+    assert np.allclose(g.div(glev, axis=0), t.div(lev, axis=0))          # same mix
+    # vol target with the guard on every month: leverage becomes min(normal leverage, 1x)
+    vt, vlev = strategies.vol_target(p)
+    guarded = strategies.correlation_guard(vt, pd.Series(0.5, index=vlev.index))
+    assert np.allclose(guarded.sum(axis=1), vlev.clip(upper=1.0))
+
+
+def test_no_lookahead_in_correlation():
+    """The correlation used on a rebalance day must not change if prices on or after that day change."""
+    p = fake_prices()
+    day = strategies.rebalance_dates(p)[-3]
+    before = strategies.stock_bond_correlation(p)
+    changed = p.copy()
+    changed.loc[day:] = changed.loc[day:] * np.random.default_rng(2).uniform(0.5, 2.0, changed.loc[day:].shape)
+    after = strategies.stock_bond_correlation(changed)
+    assert before.loc[day] == after.loc[day]

@@ -20,16 +20,19 @@ def save(fig, name):
     print("saved", path)
 
 
-def leverage_curve(curve, curve_no_mc):
-    """Two panels: leverage vs CAGR, and leverage vs max drawdown, with and without margin calls."""
+def leverage_curve(curve, zone_start=3.25):
+    """Two panels: leverage vs CAGR, and leverage vs max drawdown, with the margin rule and without it.
+    The area above `zone_start` (where margin calls begin) is shaded red."""
     fig, (a, b) = plt.subplots(1, 2, figsize=(12, 4.5))
-    for df, label, style in ((curve, "with margin calls (forced to 1x below 25% equity)", "o-"),
-                             (curve_no_mc, "never forced out (volatility drag only)", "s--")):
-        a.plot(df["leverage"], df["CAGR %"], style, label=label)
-        b.plot(df["leverage"], df["Max drawdown %"], style, label=label)
-    a.set(title="Risk parity: leverage vs CAGR", xlabel="leverage (x)", ylabel="CAGR % per year")
-    b.set(title="Risk parity: leverage vs max drawdown", xlabel="leverage (x)", ylabel="max drawdown %")
-    for ax in (a, b):
+    x = curve["leverage"]
+    for ax, col, title, ylabel in ((a, "CAGR %", "Risk parity: leverage vs CAGR", "CAGR % per year"),
+                                   (b, "Max drawdown %", "Risk parity: leverage vs max drawdown", "max drawdown %")):
+        ax.axvspan(zone_start, x.max() + 0.1, color="red", alpha=0.08, label=f"margin call zone (above {zone_start}x)")
+        ax.plot(x, curve[f"{col} (with margin rule)"], "o-",
+                label="with margin rule (forced to 1x below 25% equity)")
+        ax.plot(x, curve[f"{col} (if no margin rule existed)"], "s--",
+                label="if no margin rule existed (volatility drag only)")
+        ax.set(title=title, xlabel="leverage (x)", ylabel=ylabel, xlim=(x.min() - 0.1, x.max() + 0.1))
         ax.grid(alpha=0.3)
         ax.legend(fontsize=8)
     save(fig, "leverage_curve.png")
@@ -92,3 +95,30 @@ def vt_leverage(leverage, cap, floor, target):
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8)
     save(fig, "vt_leverage.png")
+
+
+def correlation_guard(corr, threshold, eq_no_guard, eq_guard, periods):
+    """Top: the stock-bond correlation each month and when the guard was on. Bottom: 2x with and without the guard."""
+    import pandas as pd
+    fig, (a, b) = plt.subplots(2, 1, figsize=(11, 7), sharex=True, gridspec_kw={"height_ratios": [1, 1.4]})
+    a.step(corr.index, corr, where="post", lw=1.2, label="SPY-IEF correlation, last 63 days")
+    a.axhline(threshold, color="red", ls="--", lw=1, label=f"guard threshold ({threshold:g})")
+    on = corr > threshold
+    for d, is_on in on.items():
+        if is_on:                                   # shade each guarded month
+            a.axvspan(d, d + pd.offsets.MonthBegin(1), color="red", alpha=0.15, lw=0)
+            b.axvspan(d, d + pd.offsets.MonthBegin(1), color="red", alpha=0.08, lw=0)
+    a.set(title="Correlation guard: red months = stocks and bonds moving together, leverage cut to 1x",
+          ylabel="correlation")
+    a.grid(alpha=0.3)
+    a.legend(fontsize=8, loc="lower left")
+    b.plot(eq_no_guard.index, eq_no_guard, lw=1.2, label=f"Risk parity 2x, no guard (${eq_no_guard.iloc[-1]:.2f})")
+    b.plot(eq_guard.index, eq_guard, lw=1.2, label=f"Risk parity 2x, with guard (${eq_guard.iloc[-1]:.2f})")
+    b.set_yscale("log")
+    money = matplotlib.ticker.FuncFormatter(lambda v, _: f"${v:g}")
+    b.yaxis.set_major_formatter(money)
+    b.yaxis.set_minor_formatter(money)
+    b.set(title="Growth of $1, retail borrowing (T-bill + 1%), log scale", ylabel="value of $1")
+    b.grid(alpha=0.3, which="both")
+    b.legend(fontsize=8, loc="upper left")
+    save(fig, "correlation_guard.png")
